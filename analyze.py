@@ -15,6 +15,7 @@ from judge import KEY, key, load
 MERGED = {"deny": "no_detection", "hedge": "no_detection"}
 CATS = ["no_detection", "nonspecific_claim", "specific_fabrication"]
 COLORS = {"no_detection": "#2a78d6", "nonspecific_claim": "#eb8a3c", "specific_fabrication": "#c42b2a"}
+MODEL_COLORS = {"claude-sonnet-5": "#d97757", "gpt-5.2": "#3b7d6e", "qwen/qwen3.6-27b": "#6a5acd"}
 NAMES = {"claude-sonnet-5": "Sonnet 5", "gpt-5.2": "GPT-5.2", "qwen/qwen3.6-27b": "Qwen3.6-27B"}
 
 
@@ -84,6 +85,36 @@ def main():
     fig.tight_layout(rect=(0, 0, 0.84, 1))
     fig.savefig("figure.png", dpi=200)
     print("wrote figure.png\n")
+
+    # Figure: challenges_premise and references_prior_work rates per level, grouped by model
+    flags = {"challenges_premise": "challenges premise", "references_prior_work": "references prior work"}
+    width = 0.8 / len(models)
+    fig, axes = plt.subplots(1, len(flags), figsize=(9, 3.4), sharey=True)
+    for ax, (f, title) in zip(axes, flags.items()):
+        for i, m in enumerate(models):
+            xs = [j + (i - (len(models) - 1) / 2) * width for j in range(len(levels))]
+            ks = [sum(l[f] for l in cells[m, lvl]) for lvl in levels]
+            ns = [len(cells[m, lvl]) for lvl in levels]
+            ps = [k / n if n else 0 for k, n in zip(ks, ns)]
+            cis = [wilson(k, n) for k, n in zip(ks, ns)]
+            err = [[p - lo for p, (lo, _) in zip(ps, cis)], [hi - p for p, (_, hi) in zip(ps, cis)]]
+            ax.bar(xs, ps, width=width, color=MODEL_COLORS[m], edgecolor="white", linewidth=1, label=NAMES[m])
+            ax.errorbar(xs, ps, yerr=err, fmt="none", ecolor="#52514e", elinewidth=0.8, capsize=2)
+        ax.set_title(title, fontsize=10)
+        ax.set_xticks(range(len(levels)), levels)
+        ax.set_ylim(0, 1.05)
+        ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0))
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.tick_params(labelsize=8, colors="#52514e")
+        ax.grid(axis="y", color="#e5e4e0", linewidth=0.6)
+        ax.set_axisbelow(True)
+    axes[0].set_ylabel("share of responses", fontsize=9, color="#52514e")
+    fig.supxlabel("suggestion level", fontsize=9, color="#52514e")
+    handles, names = axes[0].get_legend_handles_labels()
+    fig.legend(handles, names, loc="center right", fontsize=8, frameon=False)
+    fig.tight_layout(rect=(0, 0, 0.87, 1))
+    fig.savefig("flags.png", dpi=200)
+    print("wrote flags.png\n")
 
     # Examples: one specific fabrication per model at the highest level where one exists
     print("Example fabrications:")
